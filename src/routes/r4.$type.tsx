@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router'
 import { Tabs } from '@ark-ui/react/tabs'
-import { getExample, getResource, SchemaNotFoundError, type SchemaChunk } from '~/lib/schema'
+import { getBfdOverlay, getExample, getResource, SchemaNotFoundError, type SchemaChunk } from '~/lib/schema'
 import { useAsync } from '~/lib/use-async'
 import { annotate, evaluateWithHighlights, type EvalOutcome } from '~/lib/fhirpath-highlight'
 import { analyze } from '~/lib/fhirpath-analyzer'
@@ -17,12 +17,14 @@ import { ExternalLink } from '~/components/ExternalLink'
 type Tab = 'schema' | 'example' | 'backlinks'
 
 export const Route = createFileRoute('/r4/$type')({
-  validateSearch: (search): { tab?: Tab; q?: string } => {
+  validateSearch: (search): { tab?: Tab; q?: string; bfd?: boolean } => {
     const tab = search.tab
     const q = typeof search.q === 'string' && search.q ? search.q : undefined
+    const bfd = search.bfd === true || search.bfd === 'true'
     return {
       ...(tab === 'example' || tab === 'backlinks' ? { tab } : {}),
       ...(q ? { q } : {}),
+      ...(bfd ? { bfd: true } : {}),
     }
   },
   loader: async ({ params }) => {
@@ -39,8 +41,9 @@ export const Route = createFileRoute('/r4/$type')({
 
 function ResourceDetail() {
   const chunk = Route.useLoaderData()
-  const { tab = 'schema' } = Route.useSearch()
+  const { tab = 'schema', bfd = false } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
+  const { data: bfdOverlay } = useAsync(`bfd:${chunk.type}`, () => getBfdOverlay(chunk.type))
 
   return (
     <div className="py-5">
@@ -77,7 +80,24 @@ function ResourceDetail() {
         {/* lazyMount without unmountOnExit: hidden views keep their state
             (tree expansion, JSON collapse) when switching back. */}
         <Tabs.Content value="schema" className="outline-none">
-          <ElementTree chunk={chunk} />
+          {bfdOverlay && (
+            <p className="mb-2 flex items-baseline gap-2 font-mono text-xs">
+              <span className="rounded-sm border border-flame/40 px-1 text-[10px] leading-4 text-flame">
+                bfd
+              </span>
+              <span className="text-ink-mid">
+                {Object.keys(bfdOverlay).length} elements carry CMS data-dictionary fields
+              </span>
+              <Link
+                from={Route.fullPath}
+                search={(prev) => ({ ...prev, bfd: bfd ? undefined : true })}
+                className="text-t-complex hover:underline"
+              >
+                {bfd ? 'show all elements' : 'show populated only'}
+              </Link>
+            </p>
+          )}
+          <ElementTree chunk={chunk} bfdOverlay={bfdOverlay} bfdOnly={bfd} />
         </Tabs.Content>
         <Tabs.Content value="example" className="outline-none">
           <ExampleView type={chunk.type} />

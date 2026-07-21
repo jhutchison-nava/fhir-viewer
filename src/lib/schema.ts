@@ -5,9 +5,9 @@
  * This module is the seam for later data modes (live server, local dataset):
  * keep all chunk access behind these functions.
  */
-import type { BacklinksIndex, Catalog, SchemaChunk } from './schema-types'
+import type { BacklinksIndex, BfdIndex, BfdOverlay, Catalog, SchemaChunk } from './schema-types'
 
-export type { Backlink, BacklinksIndex, Catalog, CatalogResource, CatalogType, ElementBinding, ElementNode, ElementType, SchemaChunk } from './schema-types'
+export type { Backlink, BacklinksIndex, BfdAnnotation, BfdIndex, BfdIndexEntry, BfdOverlay, Catalog, CatalogResource, CatalogType, ElementBinding, ElementNode, ElementType, SchemaChunk } from './schema-types'
 
 const BASE = `${import.meta.env.BASE_URL}schema/r4`
 
@@ -71,6 +71,20 @@ export async function getExample(type: string): Promise<Record<string, unknown> 
 
 export function getBacklinks(): Promise<BacklinksIndex> {
   return fetchJson(`${BASE}/backlinks.json`)
+}
+
+export function getBfdIndex(): Promise<BfdIndex> {
+  return fetchJson(`${BASE}/bfd/index.json`)
+}
+
+/** BFD annotations for one resource; null when the resource has none
+ * (only EOB/Coverage/Patient carry overlay files). */
+export async function getBfdOverlay(type: string): Promise<BfdOverlay | null> {
+  try {
+    return await fetchJson(`${BASE}/bfd/${type.toLowerCase()}.json`)
+  } catch {
+    return null
+  }
 }
 
 /** Idle-time warm-up so hover cards open without a loading skeleton. */

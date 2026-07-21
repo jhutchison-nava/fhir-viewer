@@ -8,12 +8,13 @@ import { Link, useLocation } from '@tanstack/react-router'
 import { TreeView } from '@ark-ui/react/tree-view'
 import { createTreeCollection } from '@ark-ui/react/collection'
 import { ChevronRight, CornerDownRight } from 'lucide-react'
-import type { ElementNode, ElementType, SchemaChunk } from '~/lib/schema'
+import type { BfdOverlay, ElementNode, ElementType, SchemaChunk } from '~/lib/schema'
 import { prefetchChunk } from '~/lib/schema'
 import { cn } from '~/lib/cn'
 import { isPrimitive } from './TypeLabel'
 import { HoverCard } from './hover-card/HoverCardBase'
 import { BindingCard, ElementDefCard, InteractiveTypeLabel } from './hover-card/cards'
+import { BfdCard } from './hover-card/BfdCard'
 
 interface Node {
   /** Unique tree value: element path, or `path::prop` for choice rows. */
@@ -24,6 +25,16 @@ interface Node {
   /** Set on synthetic choice rows: the single concrete type. */
   choice?: ElementType
   children?: Node[]
+}
+
+function collectAllBranchValues(nodes: Node[], out: string[] = []): string[] {
+  for (const n of nodes) {
+    if (n.children?.length && !n.el.choiceOf) {
+      out.push(n.value)
+      collectAllBranchValues(n.children, out)
+    }
+  }
+  return out
 }
 
 /** Arrange the flat snapshot path list into nodes; choice elements get
@@ -57,9 +68,39 @@ function buildNodes(chunk: SchemaChunk): Node[] {
   return roots
 }
 
-export function ElementTree({ chunk }: { chunk: SchemaChunk }) {
+interface ElementTreeProps {
+  chunk: SchemaChunk
+  /** BFD annotations keyed by element path; rows gain a bfd chip. */
+  bfdOverlay?: BfdOverlay | null
+  /** When true, prune the tree to BFD-annotated paths (plus ancestors). */
+  bfdOnly?: boolean
+}
+
+/** Prune to nodes that are annotated, ancestors of annotated, or inside an
+ * annotated subtree (an annotated backbone keeps all its children). */
+function pruneToBfd(roots: Node[], overlay: BfdOverlay): Node[] {
+  const annotated = new Set(Object.keys(overlay))
+  const keepSet = new Set<string>()
+  for (const path of annotated) {
+    const segs = path.split('.')
+    for (let i = 2; i <= segs.length; i++) keepSet.add(segs.slice(0, i).join('.'))
+  }
+  const prune = (nodes: Node[]): Node[] =>
+    nodes
+      .filter((n) => n.choice || keepSet.has(n.el.path))
+      .map((n) =>
+        annotated.has(n.el.path)
+          ? n // keep the whole annotated subtree
+          : { ...n, children: n.children ? prune(n.children) : undefined },
+      )
+  return prune(roots)
+}
+
+export function ElementTree({ chunk, bfdOverlay, bfdOnly }: ElementTreeProps) {
   const { collection, defaultExpanded } = useMemo(() => {
-    const roots = buildNodes(chunk)
+    let roots = buildNodes(chunk)
+    const filtered = !!(bfdOnly && bfdOverlay)
+    if (filtered) roots = pruneToBfd(roots, bfdOverlay!)
     return {
       collection: createTreeCollection<Node>({
         rootNode: { value: chunk.type, name: chunk.type, el: chunk.elements[0], children: roots },
@@ -68,11 +109,12 @@ export function ElementTree({ chunk }: { chunk: SchemaChunk }) {
         nodeToChildren: (node) => node.children ?? [],
       }),
       // Backbone elements at the top level start open; choices start closed.
-      defaultExpanded: roots
-        .filter((n) => n.children?.length && !n.el.choiceOf)
-        .map((n) => n.value),
+      // In the pruned view, open every remaining branch — that's the point.
+      defaultExpanded: filtered
+        ? collectAllBranchValues(roots)
+        : roots.filter((n) => n.children?.length && !n.el.choiceOf).map((n) => n.value),
     }
-  }, [chunk])
+  }, [chunk, bfdOverlay, bfdOnly])
 
   // GitHub-style permalink target: #el-<path> highlights the row, expands
   // its ancestors, and scrolls it to center. Driven by router location, not
@@ -130,6 +172,7 @@ export function ElementTree({ chunk }: { chunk: SchemaChunk }) {
               indexPath={[index]}
               chunk={chunk}
               targetPath={targetPath}
+              bfdOverlay={bfdOverlay}
             />
           ))}
         </TreeView.Tree>
@@ -143,11 +186,13 @@ function ElementTreeNode({
   indexPath,
   chunk,
   targetPath,
+  bfdOverlay,
 }: {
   node: Node
   indexPath: number[]
   chunk: SchemaChunk
   targetPath: string | null
+  bfdOverlay?: BfdOverlay | null
 }) {
   const depth = indexPath.length - 1
   const indent = { paddingLeft: `${0.5 + depth * 1.25}rem` }
@@ -168,7 +213,7 @@ function ElementTreeNode({
     )
   }
 
-  const row = <RowContent node={node} chunk={chunk} />
+  const row = <RowContent node={node} chunk={chunk} bfdOverlay={bfdOverlay} />
 
   if (node.children?.length) {
     return (
@@ -195,6 +240,7 @@ function ElementTreeNode({
                 indexPath={[...indexPath, i]}
                 chunk={chunk}
                 targetPath={targetPath}
+                bfdOverlay={bfdOverlay}
               />
             ))}
           </TreeView.BranchContent>
@@ -217,9 +263,18 @@ function ElementTreeNode({
   )
 }
 
-function RowContent({ node, chunk }: { node: Node; chunk: SchemaChunk }) {
+function RowContent({
+  node,
+  chunk,
+  bfdOverlay,
+}: {
+  node: Node
+  chunk: SchemaChunk
+  bfdOverlay?: BfdOverlay | null
+}) {
   const { el, name } = node
   const isChoice = !!el.choiceOf?.length
+  const bfdAnnotations = bfdOverlay?.[el.path]
   return (
     <>
       <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
@@ -236,6 +291,13 @@ function RowContent({ node, chunk }: { node: Node; chunk: SchemaChunk }) {
           <InteractiveTypeLabel el={el} />
         )}
         {el.binding && <BindingChip binding={el.binding} />}
+        {bfdAnnotations && bfdAnnotations.length > 0 && (
+          <HoverCard content={<BfdCard resourceType={chunk.type} annotations={bfdAnnotations} />}>
+            <span className="rounded-sm border border-flame/40 px-1 font-mono text-[10px] leading-4 text-flame">
+              bfd{bfdAnnotations.length > 1 ? ` ×${bfdAnnotations.length}` : ''}
+            </span>
+          </HoverCard>
+        )}
       </span>
       <span className="hidden max-w-[45%] truncate pt-px text-right font-sans text-xs text-ink-mid md:block">
         {el.short}
