@@ -63,13 +63,20 @@ function RootLayout() {
               ▲
             </span>
             <span>
-              fhirpath<span className="text-ink-faint">.</span>
-              <span className="text-ink-mid group-hover:text-ink">explorer</span>
+              bfd<span className="text-ink-faint">.</span>
+              <span className="text-ink-mid group-hover:text-ink">dictionary</span>
             </span>
           </Link>
           <span className="rounded-sm border border-line bg-panel px-1.5 py-px text-[11px] text-ink-mid">
-            R4 · 4.0.1
+            v2.252.0 · R4
           </span>
+          <Link
+            to="/r4"
+            className="text-xs text-ink-mid hover:text-ink hover:underline"
+            activeProps={{ className: 'text-ink' }}
+          >
+            r4 library
+          </Link>
           <div className="flex-1" />
           <span className="hidden items-center gap-1 text-[11px] text-ink-faint sm:flex">
             <kbd className="rounded-sm border border-line px-1">⌘K</kbd> jump

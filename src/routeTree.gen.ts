@@ -10,11 +10,29 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ClaimClaimTypeRouteImport } from './routes/claim.$claimType'
+import { Route as FieldFieldIdRouteImport } from './routes/field.$fieldId'
+import { Route as R4IndexRouteImport } from './routes/r4.index'
 import { Route as R4TypeRouteImport } from './routes/r4.$type'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClaimClaimTypeRoute = ClaimClaimTypeRouteImport.update({
+  id: '/claim/$claimType',
+  path: '/claim/$claimType',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FieldFieldIdRoute = FieldFieldIdRouteImport.update({
+  id: '/field/$fieldId',
+  path: '/field/$fieldId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const R4IndexRoute = R4IndexRouteImport.update({
+  id: '/r4/',
+  path: '/r4/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const R4TypeRoute = R4TypeRouteImport.update({
@@ -25,28 +43,47 @@ const R4TypeRoute = R4TypeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/claim/$claimType': typeof ClaimClaimTypeRoute
+  '/field/$fieldId': typeof FieldFieldIdRoute
   '/r4/$type': typeof R4TypeRoute
+  '/r4/': typeof R4IndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/claim/$claimType': typeof ClaimClaimTypeRoute
+  '/field/$fieldId': typeof FieldFieldIdRoute
   '/r4/$type': typeof R4TypeRoute
+  '/r4': typeof R4IndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/claim/$claimType': typeof ClaimClaimTypeRoute
+  '/field/$fieldId': typeof FieldFieldIdRoute
   '/r4/$type': typeof R4TypeRoute
+  '/r4/': typeof R4IndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/r4/$type'
+  fullPaths:
+    '/' | '/claim/$claimType' | '/field/$fieldId' | '/r4/$type' | '/r4/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/r4/$type'
-  id: '__root__' | '/' | '/r4/$type'
+  to: '/' | '/claim/$claimType' | '/field/$fieldId' | '/r4/$type' | '/r4'
+  id:
+    | '__root__'
+    | '/'
+    | '/claim/$claimType'
+    | '/field/$fieldId'
+    | '/r4/$type'
+    | '/r4/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ClaimClaimTypeRoute: typeof ClaimClaimTypeRoute
+  FieldFieldIdRoute: typeof FieldFieldIdRoute
   R4TypeRoute: typeof R4TypeRoute
+  R4IndexRoute: typeof R4IndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -56,6 +93,27 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/claim/$claimType': {
+      id: '/claim/$claimType'
+      path: '/claim/$claimType'
+      fullPath: '/claim/$claimType'
+      preLoaderRoute: typeof ClaimClaimTypeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/field/$fieldId': {
+      id: '/field/$fieldId'
+      path: '/field/$fieldId'
+      fullPath: '/field/$fieldId'
+      preLoaderRoute: typeof FieldFieldIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r4/': {
+      id: '/r4/'
+      path: '/r4'
+      fullPath: '/r4/'
+      preLoaderRoute: typeof R4IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/r4/$type': {
@@ -70,7 +128,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ClaimClaimTypeRoute: ClaimClaimTypeRoute,
+  FieldFieldIdRoute: FieldFieldIdRoute,
   R4TypeRoute: R4TypeRoute,
+  R4IndexRoute: R4IndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
