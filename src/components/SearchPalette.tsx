@@ -65,6 +65,7 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
           <Search size={15} className="shrink-0 text-ink-faint" aria-hidden />
           <input
             ref={inputRef}
+            name="palette-query"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)

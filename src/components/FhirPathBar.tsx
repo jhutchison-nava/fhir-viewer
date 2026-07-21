@@ -39,6 +39,7 @@ export function FhirPathBar({ value, onChange, error, resultCount, placeholder }
         </span>
         <input
           ref={inputRef}
+          name="fhirpath"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {

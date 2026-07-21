@@ -53,6 +53,7 @@ function Library() {
             <Search size={14} className="shrink-0 text-ink-faint" aria-hidden />
             <input
               ref={inputRef}
+              name="filter"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {

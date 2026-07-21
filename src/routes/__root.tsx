@@ -17,6 +17,10 @@ function useTheme() {
 }
 
 export const Route = createRootRoute({
+  // Fully static app: loaders fetch /schema/*.json, which only exists in the
+  // browser. Disabling SSR here cascades to every route, so the server only
+  // ever sends the document shell.
+  ssr: false,
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
