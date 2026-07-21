@@ -63,6 +63,8 @@ export interface CatalogType {
   type: string
   kind: 'complex' | 'primitive'
   short: string
+  /** Abstract base types (Element, BackboneElement) — resolvable but not listed. */
+  abstract?: boolean
 }
 
 export interface Catalog {

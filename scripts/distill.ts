@@ -272,9 +272,12 @@ async function main() {
       }
     } else if (sd.kind === 'complex-type') {
       writeFileSync(join(OUT, 'types', `${lower}.json`), JSON.stringify(chunk))
-      if (!sd.abstract) {
-        types.push({ type: sd.type, kind: 'complex', short: firstSentence(sd.description ?? '') })
-      }
+      types.push({
+        type: sd.type,
+        kind: 'complex',
+        short: firstSentence(sd.description ?? ''),
+        ...(sd.abstract ? { abstract: true } : {}),
+      })
     } else if (sd.kind === 'primitive-type') {
       writeFileSync(join(OUT, 'types', `${lower}.json`), JSON.stringify(chunk))
       types.push({ type: sd.type, kind: 'primitive', short: firstSentence(sd.description ?? '') })

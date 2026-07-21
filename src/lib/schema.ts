@@ -49,11 +49,14 @@ export function getDataType(type: string): Promise<SchemaChunk> {
   return fetchJson(`${BASE}/types/${type.toLowerCase()}.json`)
 }
 
-/** Resolves a type name against resources first, then datatypes. */
+/** Resolves a type name against the catalog (no 404 probing). */
 export async function getChunk(type: string): Promise<SchemaChunk> {
+  const catalog = await getCatalog()
+  if (catalog.types.some((t) => t.type === type)) return getDataType(type)
   try {
     return await getResource(type)
   } catch {
+    // safety net for names outside the catalog
     return getDataType(type)
   }
 }
