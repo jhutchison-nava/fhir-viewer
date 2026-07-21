@@ -138,6 +138,7 @@ function ExampleView({ type }: { type: string }) {
   return (
     <div className="space-y-2">
       <FhirPathBar
+        resourceType={type}
         value={q}
         onChange={setQuery}
         error={evaluation.error}
