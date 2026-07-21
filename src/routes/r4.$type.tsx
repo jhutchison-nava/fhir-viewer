@@ -1,6 +1,8 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { getResource, SchemaNotFoundError, type SchemaChunk } from '~/lib/schema'
+import { getExample, getResource, SchemaNotFoundError, type SchemaChunk } from '~/lib/schema'
+import { useAsync } from '~/lib/use-async'
 import { ElementTree } from '~/components/ElementTree'
+import { JsonTree } from '~/components/JsonTree'
 import { cn } from '~/lib/cn'
 
 type Tab = 'schema' | 'example' | 'backlinks'
@@ -31,13 +33,34 @@ function ResourceDetail() {
       <Header chunk={chunk} />
       <TabBar active={tab} />
       {tab === 'schema' && <ElementTree chunk={chunk} />}
-      {tab === 'example' && (
-        <p className="py-8 font-mono text-sm text-ink-mid">Example view lands in milestone 4.</p>
-      )}
+      {tab === 'example' && <ExampleView type={chunk.type} />}
       {tab === 'backlinks' && (
         <p className="py-8 font-mono text-sm text-ink-mid">Backlinks land in milestone 6.</p>
       )}
     </div>
+  )
+}
+
+function ExampleView({ type }: { type: string }) {
+  const { data, loading } = useAsync(`example:${type}`, () => getExample(type))
+  if (loading) {
+    return <p className="py-8 font-mono text-sm text-ink-faint">Loading example…</p>
+  }
+  if (!data) {
+    return (
+      <p className="py-8 font-mono text-sm text-ink-mid">
+        The R4 package ships no example for {type}. Try the Schema tab instead.
+      </p>
+    )
+  }
+  return (
+    <>
+      <p className="mb-2 font-mono text-xs text-ink-faint">
+        Official example <span className="text-ink-mid">{String(data.id ?? '')}</span> — hover a
+        node for its FHIRPath, click to copy.
+      </p>
+      <JsonTree data={data} resourceType={type} />
+    </>
   )
 }
 
