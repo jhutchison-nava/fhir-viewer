@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import {
   createRootRoute,
   HeadContent,
@@ -9,7 +9,12 @@ import {
 } from '@tanstack/react-router'
 import { Moon, Sun } from 'lucide-react'
 import appCss from '~/styles/app.css?url'
-import { getTheme, THEME_BOOT_SCRIPT, toggleTheme, type Theme } from '~/lib/theme'
+import { getServerTheme, getTheme, subscribe, THEME_BOOT_SCRIPT, toggleTheme } from '~/lib/theme'
+import { SearchPalette } from '~/components/SearchPalette'
+
+function useTheme() {
+  return useSyncExternalStore(subscribe, getTheme, getServerTheme)
+}
 
 export const Route = createRootRoute({
   head: () => ({
@@ -30,8 +35,9 @@ export const Route = createRootRoute({
 })
 
 function RootDocument({ children }: { children: ReactNode }) {
+  const theme = useTheme()
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={theme === 'dark' ? 'dark' : undefined} suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
@@ -61,28 +67,30 @@ function RootLayout() {
             R4 · 4.0.1
           </span>
           <div className="flex-1" />
+          <span className="hidden items-center gap-1 text-[11px] text-ink-faint sm:flex">
+            <kbd className="rounded-sm border border-line px-1">⌘K</kbd> jump
+          </span>
           <ThemeToggle />
         </div>
       </header>
       <main className="mx-auto max-w-7xl px-4 pb-24">
         <Outlet />
       </main>
+      <SearchPalette />
     </>
   )
 }
 
 function ThemeToggle() {
-  // Read lazily: document isn't available during the SPA shell prerender.
-  const [theme, setThemeState] = useState<Theme | null>(null)
-  const current = theme ?? (typeof document !== 'undefined' ? getTheme() : 'light')
+  const theme = useTheme()
   return (
     <button
       type="button"
-      aria-label={current === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-      onClick={() => setThemeState(toggleTheme())}
+      aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+      onClick={toggleTheme}
       className="rounded-sm p-1.5 text-ink-mid hover:bg-panel hover:text-ink"
     >
-      {current === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+      {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
     </button>
   )
 }

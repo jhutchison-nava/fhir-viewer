@@ -8,6 +8,7 @@ import { ElementTree } from '~/components/ElementTree'
 import { JsonTree } from '~/components/JsonTree'
 import { FhirPathBar } from '~/components/FhirPathBar'
 import { ResultsPanel } from '~/components/ResultsPanel'
+import { BacklinksPanel } from '~/components/BacklinksPanel'
 import { cn } from '~/lib/cn'
 
 type Tab = 'schema' | 'example' | 'backlinks'
@@ -43,9 +44,7 @@ function ResourceDetail() {
       <TabBar active={tab} />
       {tab === 'schema' && <ElementTree chunk={chunk} />}
       {tab === 'example' && <ExampleView type={chunk.type} />}
-      {tab === 'backlinks' && (
-        <p className="py-8 font-mono text-sm text-ink-mid">Backlinks land in milestone 6.</p>
-      )}
+      {tab === 'backlinks' && <BacklinksPanel type={chunk.type} />}
     </div>
   )
 }
