@@ -4,10 +4,12 @@ import { Tabs } from '@ark-ui/react/tabs'
 import { getExample, getResource, SchemaNotFoundError, type SchemaChunk } from '~/lib/schema'
 import { useAsync } from '~/lib/use-async'
 import { annotate, evaluateWithHighlights, type EvalOutcome } from '~/lib/fhirpath-highlight'
+import { analyze } from '~/lib/fhirpath-analyzer'
 import { toFhirPath, type PathSeg } from '~/lib/paths'
 import { ElementTree } from '~/components/ElementTree'
 import { JsonTree } from '~/components/JsonTree'
 import { FhirPathBar } from '~/components/FhirPathBar'
+import { FhirPathStrip } from '~/components/FhirPathStrip'
 import { ResultsPanel } from '~/components/ResultsPanel'
 import { BacklinksPanel } from '~/components/BacklinksPanel'
 import { ExternalLink } from '~/components/ExternalLink'
@@ -113,6 +115,11 @@ function ExampleView({ type }: { type: string }) {
     }
   }, [annotated, q])
 
+  // Static analysis (TwoSlash-style): resolved-type strip + diagnostics.
+  const { data: analysis } = useAsync(`analyze:${type}:${q}`, () =>
+    q ? analyze(type, q) : Promise.resolve(undefined),
+  )
+
   const onPathClick = useCallback(
     (segs: readonly PathSeg[]) => setQuery(toFhirPath(type, segs)),
     [setQuery, type],
@@ -134,8 +141,10 @@ function ExampleView({ type }: { type: string }) {
         value={q}
         onChange={setQuery}
         error={evaluation.error}
+        diagnostics={analysis?.diagnostics}
         resultCount={evaluation.outcome?.results.length}
       />
+      <FhirPathStrip analysis={analysis} />
       {evaluation.outcome && (
         <ResultsPanel
           resourceType={type}
