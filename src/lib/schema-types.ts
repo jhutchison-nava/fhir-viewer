@@ -83,3 +83,46 @@ export interface Backlink {
 
 /** targetType -> referencing elements. "Resource" bucket = Reference(Any). */
 export type BacklinksIndex = Record<string, Backlink[]>
+
+// ---------------------------------------------------------------------------
+// BFD data-dictionary overlay (produced by scripts/distill-bfd.ts)
+// ---------------------------------------------------------------------------
+
+/** One CMS field's annotation, attached to a FHIR element path. */
+export interface BfdAnnotation {
+  id: number
+  name: string
+  description: string
+  /** Claim types this field applies to (Inpatient, PDE, ...). */
+  appliesTo: string[]
+  /** APIs that supply it (BB2, BFD, DPC, AB2D, BCDA, SyntheticData). */
+  suppliedIn: string[]
+  /** CCW variable name(s). */
+  ccw: string[]
+  /** Raw element path from the dictionary (with [N] markers). */
+  element: string
+  fhirPath?: string
+  discriminator?: string[]
+  additional?: string[]
+  example?: string
+}
+
+export interface BfdIndexEntry {
+  id: number
+  name: string
+  resource: string
+  /** Joined base element path in our chunks, or null when unjoinable. */
+  elementPath: string | null
+  appliesTo: string[]
+  suppliedIn: string[]
+  ccw: string[]
+  hasFhirPath: boolean
+}
+
+export interface BfdIndex {
+  version: string
+  entries: BfdIndexEntry[]
+}
+
+/** elementPath -> annotations, one file per annotated resource. */
+export type BfdOverlay = Record<string, BfdAnnotation[]>

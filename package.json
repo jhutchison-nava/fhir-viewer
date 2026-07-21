@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "distill": "tsx scripts/distill.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx scripts/analyzer.test.mts"
+    "test": "tsx scripts/analyzer.test.mts && tsx scripts/bfd.test.mts",
+    "distill:bfd": "tsx scripts/distill-bfd.ts"
   },
   "dependencies": {
     "@ark-ui/react": "^5.37.2",
