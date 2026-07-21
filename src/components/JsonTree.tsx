@@ -26,9 +26,11 @@ export interface JsonTreeProps {
   resourceType: string
   /** pathKey()s of nodes to mark as FHIRPath matches. */
   highlights?: ReadonlySet<string>
+  /** Also fired on copy-click, e.g. to load the path into the FHIRPath bar. */
+  onPathClick?: (segs: readonly PathSeg[]) => void
 }
 
-export function JsonTree({ data, resourceType, highlights }: JsonTreeProps) {
+export function JsonTree({ data, resourceType, highlights, onPathClick }: JsonTreeProps) {
   const [hovered, setHovered] = useState<readonly PathSeg[] | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
   const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -51,6 +53,7 @@ export function JsonTree({ data, resourceType, highlights }: JsonTreeProps) {
     copy: (segs) => {
       const path = toFhirPath(resourceType, segs)
       navigator.clipboard?.writeText(path).catch(() => {})
+      onPathClick?.(segs)
       setCopied(pathKey(segs))
       clearTimeout(copyTimer.current)
       copyTimer.current = setTimeout(() => setCopied(null), 1200)

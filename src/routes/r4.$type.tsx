@@ -1,16 +1,25 @@
-import { createFileRoute, Link, notFound } from '@tanstack/react-router'
+import { useCallback, useMemo } from 'react'
+import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router'
 import { getExample, getResource, SchemaNotFoundError, type SchemaChunk } from '~/lib/schema'
 import { useAsync } from '~/lib/use-async'
+import { annotate, evaluateWithHighlights, type EvalOutcome } from '~/lib/fhirpath-highlight'
+import { toFhirPath, type PathSeg } from '~/lib/paths'
 import { ElementTree } from '~/components/ElementTree'
 import { JsonTree } from '~/components/JsonTree'
+import { FhirPathBar } from '~/components/FhirPathBar'
+import { ResultsPanel } from '~/components/ResultsPanel'
 import { cn } from '~/lib/cn'
 
 type Tab = 'schema' | 'example' | 'backlinks'
 
 export const Route = createFileRoute('/r4/$type')({
-  validateSearch: (search): { tab?: Tab } => {
+  validateSearch: (search): { tab?: Tab; q?: string } => {
     const tab = search.tab
-    return tab === 'example' || tab === 'backlinks' ? { tab } : {}
+    const q = typeof search.q === 'string' && search.q ? search.q : undefined
+    return {
+      ...(tab === 'example' || tab === 'backlinks' ? { tab } : {}),
+      ...(q ? { q } : {}),
+    }
   },
   loader: async ({ params }) => {
     try {
@@ -42,11 +51,39 @@ function ResourceDetail() {
 }
 
 function ExampleView({ type }: { type: string }) {
+  const { q = '' } = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
   const { data, loading } = useAsync(`example:${type}`, () => getExample(type))
+
+  const setQuery = useCallback(
+    (expression: string) =>
+      navigate({
+        search: (prev) => ({ ...prev, q: expression || undefined }),
+        replace: true,
+      }),
+    [navigate],
+  )
+
+  const annotated = useMemo(() => (data ? annotate(data) : null), [data])
+
+  const evaluation = useMemo<{ outcome?: EvalOutcome; error?: string }>(() => {
+    if (!annotated || !q) return {}
+    try {
+      return { outcome: evaluateWithHighlights(annotated, q) }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message.split('\n')[0] : String(err) }
+    }
+  }, [annotated, q])
+
+  const onPathClick = useCallback(
+    (segs: readonly PathSeg[]) => setQuery(toFhirPath(type, segs)),
+    [setQuery, type],
+  )
+
   if (loading) {
     return <p className="py-8 font-mono text-sm text-ink-faint">Loading example…</p>
   }
-  if (!data) {
+  if (!data || !annotated) {
     return (
       <p className="py-8 font-mono text-sm text-ink-mid">
         The R4 package ships no example for {type}. Try the Schema tab instead.
@@ -54,13 +91,31 @@ function ExampleView({ type }: { type: string }) {
     )
   }
   return (
-    <>
-      <p className="mb-2 font-mono text-xs text-ink-faint">
+    <div className="space-y-2">
+      <FhirPathBar
+        value={q}
+        onChange={setQuery}
+        error={evaluation.error}
+        resultCount={evaluation.outcome?.results.length}
+      />
+      {evaluation.outcome && (
+        <ResultsPanel
+          resourceType={type}
+          results={evaluation.outcome.results}
+          resultPaths={evaluation.outcome.resultPaths}
+        />
+      )}
+      <p className="font-mono text-xs text-ink-faint">
         Official example <span className="text-ink-mid">{String(data.id ?? '')}</span> — hover a
-        node for its FHIRPath, click to copy.
+        node for its FHIRPath, click to copy it and load it into the bar.
       </p>
-      <JsonTree data={data} resourceType={type} />
-    </>
+      <JsonTree
+        data={annotated}
+        resourceType={type}
+        highlights={evaluation.outcome?.highlightKeys}
+        onPathClick={onPathClick}
+      />
+    </div>
   )
 }
 
