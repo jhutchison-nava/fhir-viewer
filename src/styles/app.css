@@ -1,0 +1,87 @@
+@import 'tailwindcss';
+
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/400-italic.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+
+  /* Ink & paper (light) */
+  --color-paper: #fbfbfa;
+  --color-panel: #f3f3f1;
+  --color-inset: #ececea;
+  --color-line: #e2e2df;
+  --color-line-strong: #c9c9c5;
+  --color-ink: #21211e;
+  --color-ink-mid: #55554f;
+  --color-ink-faint: #8a8a82;
+
+  /* FHIR flame — the single accent */
+  --color-flame: #d64d1f;
+  --color-flame-soft: #f8e5dc;
+
+  /* Type-kind semantics */
+  --color-t-complex: #2563a8; /* clickable complex datatype */
+  --color-t-primitive: #3d7a4a; /* leaf primitive */
+  --color-t-reference: #7448ae; /* Reference(...) */
+  --color-t-choice: #a16207; /* [x] choice marker */
+
+  /* Query/result */
+  --color-match: #fff3c4;
+  --color-match-line: #e3b341;
+}
+
+.dark {
+  --color-paper: #131312;
+  --color-panel: #1b1b1a;
+  --color-inset: #222220;
+  --color-line: #2b2b29;
+  --color-line-strong: #414140;
+  --color-ink: #e6e4de;
+  --color-ink-mid: #a3a199;
+  --color-ink-faint: #6e6d66;
+
+  --color-flame: #f0713f;
+  --color-flame-soft: #3a2118;
+
+  --color-t-complex: #6ba3dd;
+  --color-t-primitive: #7dba8a;
+  --color-t-reference: #ab87dd;
+  --color-t-choice: #d4a72c;
+
+  --color-match: #3d3417;
+  --color-match-line: #b08a24;
+}
+
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  scrollbar-gutter: stable;
+}
+
+::selection {
+  background: var(--color-flame-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-flame);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
