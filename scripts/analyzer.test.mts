@@ -69,4 +69,23 @@ for (const c of cases) {
   }
 }
 console.log(failures ? `\n${failures} FAILURES` : '\nALL PASS')
-process.exit(failures ? 1 : 0)
+if (failures) process.exit(1)
+
+// --- suggest() smoke tests ---
+const { suggest } = await import('../src/lib/fhirpath-analyzer')
+const s1 = await suggest('Patient', '')
+const s2 = await suggest('Patient', 'name')
+const s3 = await suggest('Patient', "name.where(use='official')")
+const s4 = await suggest('Observation', 'value.ofType(Quantity)')
+const checks: [string, boolean][] = [
+  ['root has name', s1.some((c) => c.name === 'name' && c.kind === 'element')],
+  ['root has no functions', !s1.some((c) => c.kind === 'function')],
+  ['name has family', s2.some((c) => c.name === 'family')],
+  ['name has functions', s2.some((c) => c.name === 'where')],
+  ['where() keeps HumanName members', s3.some((c) => c.name === 'given')],
+  ['ofType(Quantity) has unit', s4.some((c) => c.name === 'unit')],
+]
+let sFail = 0
+for (const [label, ok] of checks) { console.log((ok ? '✓' : '✗') + ' suggest: ' + label); if (!ok) sFail++ }
+if (sFail) { console.log(sFail + ' SUGGEST FAILURES'); process.exit(1) }
+console.log('SUGGEST PASS')

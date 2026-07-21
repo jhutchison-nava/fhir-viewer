@@ -49,6 +49,15 @@ export interface Analysis {
   diagnostics: Diagnostic[]
 }
 
+export interface Completion {
+  name: string
+  kind: 'element' | 'function'
+  types: ElementType[]
+  short?: string
+  /** For functions: whether the parens take arguments (caret goes inside). */
+  hasParams?: boolean
+}
+
 // ---------------------------------------------------------------------------
 // Type state
 // ---------------------------------------------------------------------------
@@ -428,9 +437,76 @@ export async function analyze(resourceType: string, expression: string): Promise
     return node ? identifierText(node) : null
   }
 
-  await resolve(ast, root, root, true)
+  const final = await resolve(ast, root, root, true)
   segments.sort((a, b) => a.start - b.start)
-  return { segments, diagnostics }
+  const analysis: Analysis = { segments, diagnostics }
+  FINALS.set(analysis, { final, childElements })
+  return analysis
+}
+
+// ---------------------------------------------------------------------------
+// Completions (TwoSlash ^| equivalent)
+// ---------------------------------------------------------------------------
+
+/** Opaque per-analysis resolver state, for suggest(). */
+const FINALS = new WeakMap<
+  Analysis,
+  {
+    final: Resolved
+    childElements: (state: TypeState) => Promise<{ els: ElementNode[]; chunk: SchemaChunk } | null>
+  }
+>()
+
+export const FHIRPATH_FUNCTIONS: Completion[] = [
+  { name: 'where', kind: 'function', types: [], short: 'filter by criteria', hasParams: true },
+  { name: 'exists', kind: 'function', types: [{ code: 'boolean' }], short: 'any items (optionally matching)?', hasParams: true },
+  { name: 'empty', kind: 'function', types: [{ code: 'boolean' }], short: 'no items?' },
+  { name: 'first', kind: 'function', types: [], short: 'first item' },
+  { name: 'last', kind: 'function', types: [], short: 'last item' },
+  { name: 'single', kind: 'function', types: [], short: 'sole item (error if more)' },
+  { name: 'count', kind: 'function', types: [{ code: 'integer' }], short: 'number of items' },
+  { name: 'distinct', kind: 'function', types: [], short: 'unique items' },
+  { name: 'select', kind: 'function', types: [], short: 'project each item', hasParams: true },
+  { name: 'ofType', kind: 'function', types: [], short: 'keep items of a type', hasParams: true },
+  { name: 'as', kind: 'function', types: [], short: 'cast to a type', hasParams: true },
+  { name: 'extension', kind: 'function', types: [{ code: 'Extension' }], short: 'extensions by url', hasParams: true },
+  { name: 'resolve', kind: 'function', types: [], short: 'follow references' },
+  { name: 'memberOf', kind: 'function', types: [{ code: 'boolean' }], short: 'in value set?', hasParams: true },
+  { name: 'matches', kind: 'function', types: [{ code: 'boolean' }], short: 'regex match', hasParams: true },
+  { name: 'startsWith', kind: 'function', types: [{ code: 'boolean' }], short: 'string prefix?', hasParams: true },
+  { name: 'contains', kind: 'function', types: [{ code: 'boolean' }], short: 'substring?', hasParams: true },
+  { name: 'join', kind: 'function', types: [{ code: 'string' }], short: 'concatenate with separator', hasParams: true },
+  { name: 'toString', kind: 'function', types: [{ code: 'string' }], short: 'convert to string' },
+  { name: 'toInteger', kind: 'function', types: [{ code: 'integer' }], short: 'convert to integer' },
+  { name: 'not', kind: 'function', types: [{ code: 'boolean' }], short: 'boolean negation' },
+  { name: 'hasValue', kind: 'function', types: [{ code: 'boolean' }], short: 'primitive has value?' },
+  { name: 'children', kind: 'function', types: [], short: 'all child nodes' },
+  { name: 'descendants', kind: 'function', types: [], short: 'all descendant nodes' },
+  { name: 'trace', kind: 'function', types: [], short: 'log and pass through', hasParams: true },
+]
+
+/** Elements (and functions) valid after `baseExpression.` — the caret's
+ * resolved type drives the list, exactly like TwoSlash `^|`. */
+export async function suggest(resourceType: string, baseExpression: string): Promise<Completion[]> {
+  const base = baseExpression.trim()
+  const analysis = await analyze(resourceType, base || resourceType)
+  const stash = FINALS.get(analysis)
+  if (!stash) return []
+  const out: Completion[] = []
+  const seen = new Set<string>()
+  for (const state of stash.final.states) {
+    const kids = await stash.childElements(state)
+    if (!kids) continue
+    for (const el of kids.els) {
+      const last = el.path.split('.').pop()!
+      const stem = last.endsWith('[x]') ? last.slice(0, -3) : last
+      if (seen.has(stem)) continue
+      seen.add(stem)
+      out.push({ name: stem, kind: 'element', types: el.types, short: el.short })
+    }
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name))
+  return base ? [...out, ...FHIRPATH_FUNCTIONS] : out
 }
 
 // ---------------------------------------------------------------------------
