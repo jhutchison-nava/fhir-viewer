@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "distill": "tsx scripts/distill.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx scripts/analyzer.test.mts"
   },
   "dependencies": {
     "@ark-ui/react": "^5.37.2",
