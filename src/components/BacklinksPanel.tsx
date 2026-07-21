@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { Collapsible } from '@ark-ui/react/collapsible'
+import { ChevronRight } from 'lucide-react'
 import { getBacklinks, getResource, prefetchChunk, type Backlink } from '~/lib/schema'
 import { useAsync } from '~/lib/use-async'
 import { HoverCard } from './hover-card/HoverCardBase'
@@ -88,37 +89,38 @@ function RemoteElementDefCard({ link }: { link: Backlink }) {
 }
 
 function AnyRefsSection({ count, links }: { count: number; links: Backlink[] }) {
-  const [open, setOpen] = useState(false)
   return (
-    <section className="border-t border-line pt-3">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        className="flex items-center gap-1 font-mono text-xs text-ink-mid hover:text-ink"
-      >
-        {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-        {count} Reference(Any) element{count === 1 ? '' : 's'} can point at any resource type,
-        including this one
-      </button>
-      {open && (
-        <ul className="mt-2 columns-1 gap-6 px-1 font-mono text-xs md:columns-2 xl:columns-3">
-          {links.map((link) => (
-            <li key={link.path} className="py-px">
-              <HoverCard content={<RemoteElementDefCard link={link} />}>
-                <Link
-                  to="/r4/$type"
-                  params={{ type: link.source }}
-                  hash={`el-${link.path}`}
-                  className="text-ink-mid hover:underline"
-                >
-                  {link.path}
-                </Link>
-              </HoverCard>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+    <Collapsible.Root lazyMount asChild>
+      <section className="border-t border-line pt-3">
+        <Collapsible.Trigger className="flex items-center gap-1 font-mono text-xs text-ink-mid hover:text-ink">
+          <Collapsible.Indicator
+            className="transition-transform data-[state=open]:rotate-90"
+            aria-hidden
+          >
+            <ChevronRight size={13} />
+          </Collapsible.Indicator>
+          {count} Reference(Any) element{count === 1 ? '' : 's'} can point at any resource type,
+          including this one
+        </Collapsible.Trigger>
+        <Collapsible.Content>
+          <ul className="mt-2 columns-1 gap-6 px-1 font-mono text-xs md:columns-2 xl:columns-3">
+            {links.map((link) => (
+              <li key={link.path} className="py-px">
+                <HoverCard content={<RemoteElementDefCard link={link} />}>
+                  <Link
+                    to="/r4/$type"
+                    params={{ type: link.source }}
+                    hash={`el-${link.path}`}
+                    className="text-ink-mid hover:underline"
+                  >
+                    {link.path}
+                  </Link>
+                </HoverCard>
+              </li>
+            ))}
+          </ul>
+        </Collapsible.Content>
+      </section>
+    </Collapsible.Root>
   )
 }
