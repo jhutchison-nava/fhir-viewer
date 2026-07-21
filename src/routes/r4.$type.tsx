@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router'
+import { Tabs } from '@ark-ui/react/tabs'
 import { getExample, getResource, SchemaNotFoundError, type SchemaChunk } from '~/lib/schema'
 import { useAsync } from '~/lib/use-async'
 import { annotate, evaluateWithHighlights, type EvalOutcome } from '~/lib/fhirpath-highlight'
@@ -9,7 +10,6 @@ import { JsonTree } from '~/components/JsonTree'
 import { FhirPathBar } from '~/components/FhirPathBar'
 import { ResultsPanel } from '~/components/ResultsPanel'
 import { BacklinksPanel } from '~/components/BacklinksPanel'
-import { cn } from '~/lib/cn'
 
 type Tab = 'schema' | 'example' | 'backlinks'
 
@@ -37,14 +37,46 @@ export const Route = createFileRoute('/r4/$type')({
 function ResourceDetail() {
   const chunk = Route.useLoaderData()
   const { tab = 'schema' } = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
 
   return (
     <div className="py-5">
       <Header chunk={chunk} />
-      <TabBar active={tab} />
-      {tab === 'schema' && <ElementTree chunk={chunk} />}
-      {tab === 'example' && <ExampleView type={chunk.type} />}
-      {tab === 'backlinks' && <BacklinksPanel type={chunk.type} />}
+      <Tabs.Root
+        value={tab}
+        lazyMount
+        // Pointer clicks navigate through the Links below (URL-first); this
+        // handler makes arrow-key tab switching navigate too. Same-URL
+        // navigation after a click is a no-op.
+        onValueChange={({ value }) =>
+          navigate({ search: value === 'schema' ? {} : { tab: value as Tab } })
+        }
+      >
+        <Tabs.List className="mb-3 flex gap-1 border-b border-line font-mono text-sm">
+          {TABS.map(({ id, label }) => (
+            <Tabs.Trigger key={id} value={id} asChild>
+              <Link
+                from={Route.fullPath}
+                search={id === 'schema' ? {} : { tab: id }}
+                className="-mb-px border-b-2 border-transparent px-3 py-1.5 text-ink-mid hover:border-line-strong hover:text-ink data-selected:border-flame data-selected:font-medium data-selected:text-ink"
+              >
+                {label}
+              </Link>
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
+        {/* lazyMount without unmountOnExit: hidden views keep their state
+            (tree expansion, JSON collapse) when switching back. */}
+        <Tabs.Content value="schema" className="outline-none">
+          <ElementTree chunk={chunk} />
+        </Tabs.Content>
+        <Tabs.Content value="example" className="outline-none">
+          <ExampleView type={chunk.type} />
+        </Tabs.Content>
+        <Tabs.Content value="backlinks" className="outline-none">
+          <BacklinksPanel type={chunk.type} />
+        </Tabs.Content>
+      </Tabs.Root>
     </div>
   )
 }
@@ -171,29 +203,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'example', label: 'Example' },
   { id: 'backlinks', label: 'Backlinks' },
 ]
-
-function TabBar({ active }: { active: Tab }) {
-  return (
-    <nav aria-label="Resource views" className="mb-3 flex gap-1 border-b border-line font-mono text-sm">
-      {TABS.map((tab) => (
-        <Link
-          key={tab.id}
-          from={Route.fullPath}
-          search={tab.id === 'schema' ? {} : { tab: tab.id }}
-          aria-current={active === tab.id ? 'page' : undefined}
-          className={cn(
-            '-mb-px border-b-2 px-3 py-1.5',
-            active === tab.id
-              ? 'border-flame font-medium text-ink'
-              : 'border-transparent text-ink-mid hover:border-line-strong hover:text-ink',
-          )}
-        >
-          {tab.label}
-        </Link>
-      ))}
-    </nav>
-  )
-}
 
 function NotFound() {
   const { type } = Route.useParams()
