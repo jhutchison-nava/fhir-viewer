@@ -1,10 +1,10 @@
-import { Fragment } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import type { ElementNode } from '~/lib/schema'
 import { cn } from '~/lib/cn'
 
-/** Primitive FHIR types render green and inert; everything else is a complex
- * datatype (blue) or resource reference target (violet). Hover cards attach
- * here in milestone 3. */
+/** Primitive FHIR types render green; complex datatypes blue; Reference
+ * targets violet. Interactivity is injected via the wrap props so this stays
+ * decoupled from the hover-card layer (see cards.tsx/InteractiveTypeLabel). */
 const PRIMITIVES = new Set([
   'base64Binary', 'boolean', 'canonical', 'code', 'date', 'dateTime', 'decimal',
   'id', 'instant', 'integer', 'markdown', 'oid', 'positiveInt', 'string',
@@ -15,7 +15,13 @@ export function isPrimitive(code: string) {
   return PRIMITIVES.has(code)
 }
 
-export function TypeLabel({ el }: { el: ElementNode }) {
+interface TypeLabelProps {
+  el: ElementNode
+  wrapType?: (code: string, node: ReactNode) => ReactNode
+  wrapReference?: (targets: string[] | undefined, node: ReactNode) => ReactNode
+}
+
+export function TypeLabel({ el, wrapType, wrapReference }: TypeLabelProps) {
   if (el.choiceOf?.length) {
     return (
       <span className="text-xs text-t-choice" title={el.types.map((t) => t.code).join(' | ')}>
@@ -25,16 +31,22 @@ export function TypeLabel({ el }: { el: ElementNode }) {
   }
   return (
     <span className="min-w-0 truncate text-xs">
-      {el.types.map((t, i) => (
-        <Fragment key={t.code}>
-          {i > 0 && <span className="text-ink-faint"> | </span>}
-          {t.code === 'Reference' ? (
-            <ReferenceLabel targets={t.targets} />
-          ) : (
-            <TypeName code={t.code} />
-          )}
-        </Fragment>
-      ))}
+      {el.types.map((t, i) => {
+        let node: ReactNode
+        if (t.code === 'Reference') {
+          node = <ReferenceLabel targets={t.targets} />
+          if (wrapReference) node = wrapReference(t.targets, node)
+        } else {
+          node = <TypeName code={t.code} />
+          if (wrapType) node = wrapType(t.code, node)
+        }
+        return (
+          <Fragment key={t.code}>
+            {i > 0 && <span className="text-ink-faint"> | </span>}
+            {node}
+          </Fragment>
+        )
+      })}
     </span>
   )
 }

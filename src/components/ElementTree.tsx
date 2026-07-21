@@ -1,8 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, CornerDownRight } from 'lucide-react'
 import type { ElementNode, SchemaChunk } from '~/lib/schema'
+import { prefetchChunk } from '~/lib/schema'
 import { cn } from '~/lib/cn'
-import { TypeLabel } from './TypeLabel'
+import { isPrimitive } from './TypeLabel'
+import { HoverCard } from './hover-card/HoverCardBase'
+import {
+  BindingCard,
+  ElementDefCard,
+  InteractiveTypeLabel,
+} from './hover-card/cards'
+
+/** Card context for element rows; threaded so ElementDefCard can resolve
+ * contentReference against the owning chunk. */
 
 interface TreeNode {
   el: ElementNode
@@ -41,6 +51,18 @@ export function ElementTree({ chunk }: { chunk: SchemaChunk }) {
   // (backbone children collapsed, choices collapsed).
   const [toggled, setToggled] = useState<Set<string>>(new Set())
 
+  // Warm the chunk cache for every complex type on the page so hover cards
+  // open without a skeleton.
+  useEffect(() => {
+    const codes = new Set<string>()
+    for (const el of chunk.elements) {
+      for (const t of el.types) {
+        if (!isPrimitive(t.code)) codes.add(t.code)
+      }
+    }
+    codes.forEach(prefetchChunk)
+  }, [chunk])
+
   const toggle = (path: string) =>
     setToggled((prev) => {
       const next = new Set(prev)
@@ -53,7 +75,7 @@ export function ElementTree({ chunk }: { chunk: SchemaChunk }) {
     <div className="overflow-x-auto rounded-sm border border-line">
       <div className="min-w-[42rem] font-mono text-[13px]">
         {roots.map((node) => (
-          <Row key={node.el.path} node={node} toggled={toggled} onToggle={toggle} />
+          <Row key={node.el.path} node={node} chunk={chunk} toggled={toggled} onToggle={toggle} />
         ))}
       </div>
     </div>
@@ -62,10 +84,12 @@ export function ElementTree({ chunk }: { chunk: SchemaChunk }) {
 
 function Row({
   node,
+  chunk,
   toggled,
   onToggle,
 }: {
   node: TreeNode
+  chunk: SchemaChunk
   toggled: Set<string>
   onToggle: (path: string) => void
 }) {
@@ -79,7 +103,7 @@ function Row({
     <>
       <div
         id={`el-${el.path}`}
-        className="group flex items-start gap-2 border-b border-line px-2 py-1 target:bg-flame-soft hover:bg-panel"
+        className="group flex scroll-mt-14 items-start gap-2 border-b border-line px-2 py-1 target:bg-flame-soft hover:bg-panel"
         style={{ paddingLeft: `${0.5 + depth * 1.25}rem` }}
       >
         <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
@@ -96,12 +120,18 @@ function Row({
           ) : (
             <span className="w-[13px] shrink-0" aria-hidden />
           )}
-          <span className={cn('font-medium', isChoice && 'text-t-choice')} title={el.path}>
-            {name}
-          </span>
+          <HoverCard content={<ElementDefCard chunk={chunk} el={el} />}>
+            <span className={cn('font-medium', isChoice && 'text-t-choice')} title={el.path}>
+              {name}
+            </span>
+          </HoverCard>
           <Flags el={el} />
           <Cardinality el={el} />
-          {el.contentRef ? <ContentRefLink target={el.contentRef} /> : <TypeLabel el={el} />}
+          {el.contentRef ? (
+            <ContentRefLink target={el.contentRef} />
+          ) : (
+            <InteractiveTypeLabel el={el} />
+          )}
           {el.binding && <BindingChip binding={el.binding} />}
         </span>
         <span className="hidden max-w-[45%] truncate pt-px text-right font-sans text-xs text-ink-mid md:block">
@@ -111,7 +141,7 @@ function Row({
       {open && isChoice && <ChoiceRows node={node} />}
       {open &&
         node.children.map((child) => (
-          <Row key={child.el.path} node={child} toggled={toggled} onToggle={onToggle} />
+          <Row key={child.el.path} node={child} chunk={chunk} toggled={toggled} onToggle={onToggle} />
         ))}
     </>
   )
@@ -130,7 +160,7 @@ function ChoiceRows({ node }: { node: TreeNode }) {
         >
           <CornerDownRight size={11} className="self-center text-ink-faint" aria-hidden />
           <span className="font-medium">{el.choiceOf![i]}</span>
-          <TypeLabel el={{ ...el, types: [t], choiceOf: undefined }} />
+          <InteractiveTypeLabel el={{ ...el, types: [t], choiceOf: undefined }} />
         </div>
       ))}
     </>
@@ -183,12 +213,11 @@ function ContentRefLink({ target }: { target: string }) {
 function BindingChip({ binding }: { binding: NonNullable<ElementNode['binding']> }) {
   const label = binding.name ?? binding.url?.split('/').pop() ?? 'binding'
   return (
-    <span
-      className="rounded-sm border border-line bg-panel px-1 text-[10px] leading-4 text-ink-mid"
-      title={`Binding: ${label} (${binding.strength})${binding.url ? `\n${binding.url}` : ''}`}
-    >
-      {label}
-      <span className="text-ink-faint"> · {binding.strength}</span>
-    </span>
+    <HoverCard content={<BindingCard binding={binding} />}>
+      <span className="rounded-sm border border-line bg-panel px-1 text-[10px] leading-4 text-ink-mid">
+        {label}
+        <span className="text-ink-faint"> · {binding.strength}</span>
+      </span>
+    </HoverCard>
   )
 }
