@@ -1,19 +1,135 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { getResource } from '~/lib/schema'
+import { createFileRoute, Link, notFound } from '@tanstack/react-router'
+import { getResource, SchemaNotFoundError, type SchemaChunk } from '~/lib/schema'
+import { ElementTree } from '~/components/ElementTree'
+import { cn } from '~/lib/cn'
+
+type Tab = 'schema' | 'example' | 'backlinks'
 
 export const Route = createFileRoute('/r4/$type')({
-  loader: ({ params }) => getResource(params.type),
+  validateSearch: (search): { tab?: Tab } => {
+    const tab = search.tab
+    return tab === 'example' || tab === 'backlinks' ? { tab } : {}
+  },
+  loader: async ({ params }) => {
+    try {
+      return await getResource(params.type)
+    } catch (err) {
+      if (err instanceof SchemaNotFoundError) throw notFound()
+      throw err
+    }
+  },
+  notFoundComponent: NotFound,
   component: ResourceDetail,
 })
 
 function ResourceDetail() {
   const chunk = Route.useLoaderData()
+  const { tab = 'schema' } = Route.useSearch()
+
   return (
-    <div className="py-6">
-      <h1 className="font-mono text-lg font-semibold">{chunk.type}</h1>
-      <p className="mt-2 max-w-3xl text-sm text-ink-mid">{chunk.description}</p>
-      <p className="mt-4 font-mono text-xs text-ink-faint">
-        {chunk.elements.length} elements — tree coming in milestone 2
+    <div className="py-5">
+      <Header chunk={chunk} />
+      <TabBar active={tab} />
+      {tab === 'schema' && <ElementTree chunk={chunk} />}
+      {tab === 'example' && (
+        <p className="py-8 font-mono text-sm text-ink-mid">Example view lands in milestone 4.</p>
+      )}
+      {tab === 'backlinks' && (
+        <p className="py-8 font-mono text-sm text-ink-mid">Backlinks land in milestone 6.</p>
+      )}
+    </div>
+  )
+}
+
+function Header({ chunk }: { chunk: SchemaChunk }) {
+  return (
+    <header className="mb-4">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <nav aria-label="Breadcrumb" className="font-mono text-xs text-ink-faint">
+          <Link to="/" className="hover:text-ink hover:underline">
+            r4
+          </Link>
+          <span> / </span>
+        </nav>
+        <h1 className="font-mono text-xl font-semibold tracking-tight">{chunk.type}</h1>
+        {chunk.base && (
+          <span className="font-mono text-xs text-ink-faint">extends {chunk.base}</span>
+        )}
+        <span className="ml-auto flex items-center gap-1.5 font-mono text-[11px] text-ink-mid">
+          {chunk.standardsStatus === 'normative' ? (
+            <span className="rounded-sm border border-t-primitive/40 px-1.5 py-px text-t-primitive">
+              normative
+            </span>
+          ) : (
+            chunk.fmm !== undefined && (
+              <span
+                className="rounded-sm border border-line px-1.5 py-px"
+                title="FHIR Maturity Model level"
+              >
+                fmm {chunk.fmm}
+              </span>
+            )
+          )}
+          <a
+            href={`https://hl7.org/fhir/R4/${chunk.type.toLowerCase()}.html`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-sm border border-line px-1.5 py-px hover:bg-panel"
+          >
+            spec ↗
+          </a>
+        </span>
+      </div>
+      {chunk.description && (
+        <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-ink-mid">
+          {chunk.description}
+        </p>
+      )}
+    </header>
+  )
+}
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'schema', label: 'Schema' },
+  { id: 'example', label: 'Example' },
+  { id: 'backlinks', label: 'Backlinks' },
+]
+
+function TabBar({ active }: { active: Tab }) {
+  return (
+    <nav aria-label="Resource views" className="mb-3 flex gap-1 border-b border-line font-mono text-sm">
+      {TABS.map((tab) => (
+        <Link
+          key={tab.id}
+          from={Route.fullPath}
+          search={tab.id === 'schema' ? {} : { tab: tab.id }}
+          aria-current={active === tab.id ? 'page' : undefined}
+          className={cn(
+            '-mb-px border-b-2 px-3 py-1.5',
+            active === tab.id
+              ? 'border-flame font-medium text-ink'
+              : 'border-transparent text-ink-mid hover:border-line-strong hover:text-ink',
+          )}
+        >
+          {tab.label}
+        </Link>
+      ))}
+    </nav>
+  )
+}
+
+function NotFound() {
+  const { type } = Route.useParams()
+  return (
+    <div className="py-16 text-center font-mono">
+      <p className="text-lg">
+        No R4 resource named <span className="font-semibold text-flame">{type}</span>
+      </p>
+      <p className="mt-2 text-sm text-ink-mid">
+        Check the spelling — resource names are case-sensitive.{' '}
+        <Link to="/" className="text-t-complex underline">
+          Browse all resources
+        </Link>
       </p>
     </div>
   )
