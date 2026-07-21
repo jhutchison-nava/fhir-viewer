@@ -1,20 +1,57 @@
 /**
- * Example-instance JSON view. Every node knows its path into the resource;
- * hovering shows the node's FHIRPath in a sticky chip, clicking a key or
- * value copies it. Milestone 5 feeds `highlights` from FHIRPath evaluation.
+ * Example-instance JSON view on Ark UI TreeView: treeitem semantics, arrow
+ * keys, and typeahead over keys come from the machine. Selecting a node
+ * (click or Enter) copies its FHIRPath via one Ark Clipboard machine and
+ * loads it into the FHIRPath bar. Hovering shows the node's path in a
+ * sticky chip; FHIRPath evaluation feeds `highlights`.
  */
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { TreeView } from '@ark-ui/react/tree-view'
+import { useClipboard } from '@ark-ui/react/clipboard'
+import { createTreeCollection } from '@ark-ui/react/collection'
+import { ChevronDown } from 'lucide-react'
 import { pathKey, toFhirPath, type PathSeg } from '~/lib/paths'
 import { cn } from '~/lib/cn'
 
+interface JNode {
+  /** Unique tree value: 'p' + pathKey(segs); root = 'p'. */
+  value: string
+  key: string | number | null
+  jsonValue: unknown
+  segs: readonly PathSeg[]
+  children?: JNode[]
+}
+
+function buildNode(jsonValue: unknown, key: string | number | null, segs: readonly PathSeg[]): JNode {
+  const node: JNode = { value: 'p' + pathKey(segs), key, jsonValue, segs }
+  if (Array.isArray(jsonValue)) {
+    node.children = jsonValue.map((child, i) => buildNode(child, i, [...segs, i]))
+  } else if (jsonValue !== null && typeof jsonValue === 'object') {
+    node.children = Object.entries(jsonValue).map(([k, child]) =>
+      buildNode(child, k, [...segs, k]),
+    )
+  }
+  return node
+}
+
+function collectBranchValues(node: JNode, out: string[] = []): string[] {
+  if (node.children) {
+    out.push(node.value)
+    node.children.forEach((child) => collectBranchValues(child, out))
+  }
+  return out
+}
+
 interface TreeCtx {
   resourceType: string
-  hovered: readonly PathSeg[] | null
   setHovered: (segs: readonly PathSeg[] | null) => void
-  copied: string | null
-  copy: (segs: readonly PathSeg[]) => void
-  /** pathKey()s of exact matches, plus every ancestor in `highlightTrail`. */
   highlights: ReadonlySet<string>
   highlightTrail: ReadonlySet<string>
 }
@@ -26,14 +63,41 @@ export interface JsonTreeProps {
   resourceType: string
   /** pathKey()s of nodes to mark as FHIRPath matches. */
   highlights?: ReadonlySet<string>
-  /** Also fired on copy-click, e.g. to load the path into the FHIRPath bar. */
+  /** Also fired on copy-select, e.g. to load the path into the FHIRPath bar. */
   onPathClick?: (segs: readonly PathSeg[]) => void
 }
 
 export function JsonTree({ data, resourceType, highlights, onPathClick }: JsonTreeProps) {
   const [hovered, setHovered] = useState<readonly PathSeg[] | null>(null)
-  const [copied, setCopied] = useState<string | null>(null)
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // Copy is two-step (set value, copy in an effect): calling copy() in the
+  // same tick as setValue uses the machine's stale render-time value.
+  const [pendingCopy, setPendingCopy] = useState<string | null>(null)
+  const clipboard = useClipboard({ value: pendingCopy ?? '', timeout: 1200 })
+  const copyRef = useRef(clipboard.copy)
+  copyRef.current = clipboard.copy
+  useEffect(() => {
+    if (pendingCopy) copyRef.current()
+  }, [pendingCopy])
+
+  const { collection, nodesByValue, allBranches } = useMemo(() => {
+    const rootNode = buildNode(data, null, [])
+    const nodesByValue = new Map<string, JNode>()
+    const walk = (node: JNode) => {
+      nodesByValue.set(node.value, node)
+      node.children?.forEach(walk)
+    }
+    walk(rootNode)
+    return {
+      collection: createTreeCollection<JNode>({
+        rootNode,
+        nodeToValue: (node) => node.value,
+        nodeToString: (node) => String(node.key ?? ''),
+        nodeToChildren: (node) => node.children ?? [],
+      }),
+      nodesByValue,
+      allBranches: collectBranchValues(rootNode),
+    }
+  }, [data])
 
   const highlightTrail = useMemo(() => {
     // Ancestors of matches get a subtle rail so collapsed context is visible.
@@ -47,17 +111,7 @@ export function JsonTree({ data, resourceType, highlights, onPathClick }: JsonTr
 
   const ctx: TreeCtx = {
     resourceType,
-    hovered,
     setHovered,
-    copied,
-    copy: (segs) => {
-      const path = toFhirPath(resourceType, segs)
-      navigator.clipboard?.writeText(path).catch(() => {})
-      onPathClick?.(segs)
-      setCopied(pathKey(segs))
-      clearTimeout(copyTimer.current)
-      copyTimer.current = setTimeout(() => setCopied(null), 1200)
-    },
     highlights: highlights ?? new Set(),
     highlightTrail,
   }
@@ -74,152 +128,152 @@ export function JsonTree({ data, resourceType, highlights, onPathClick }: JsonTr
   return (
     <Ctx.Provider value={ctx}>
       <div ref={rootRef} className="relative overflow-x-auto rounded-sm border border-line">
-        <PathChip />
-        <div
+        <PathChip
+          resourceType={resourceType}
+          hovered={hovered}
+          copied={clipboard.copied ? clipboard.value : null}
+        />
+        <TreeView.Root
+          collection={collection}
+          defaultExpandedValue={allBranches}
+          selectionMode="single"
+          expandOnClick={false}
+          onSelectionChange={({ selectedValue }) => {
+            const node = selectedValue[0] ? nodesByValue.get(selectedValue[0]) : undefined
+            if (!node) return
+            setPendingCopy(toFhirPath(resourceType, node.segs))
+            onPathClick?.(node.segs)
+          }}
           className="min-w-fit px-3 py-2 font-mono text-[13px] leading-relaxed"
           onMouseLeave={() => setHovered(null)}
         >
-          <Node value={data} segs={[]} />
-        </div>
+          <TreeView.Tree className="outline-none" aria-label={`${resourceType} example JSON`}>
+            <JNodeRow node={collection.rootNode} indexPath={[]} />
+          </TreeView.Tree>
+        </TreeView.Root>
       </div>
     </Ctx.Provider>
   )
 }
 
-function PathChip() {
-  const { resourceType, hovered, copied } = useContext(Ctx)!
-  if (!hovered) return null
-  const isCopied = copied === pathKey(hovered)
+function PathChip({
+  resourceType,
+  hovered,
+  copied,
+}: {
+  resourceType: string
+  hovered: readonly PathSeg[] | null
+  copied: string | null
+}) {
+  if (!hovered && !copied) return null
   return (
     <div className="pointer-events-none sticky top-1 z-10 flex h-0 justify-end pr-2">
       <span
         className={cn(
           'rounded-sm border px-1.5 py-0.5 font-mono text-[11px] shadow-sm',
-          isCopied
+          copied
             ? 'border-t-primitive/50 bg-panel text-t-primitive'
             : 'border-line-strong bg-panel text-ink',
         )}
       >
-        {isCopied ? 'copied!' : toFhirPath(resourceType, hovered)}
+        {copied ? `copied ${copied}` : toFhirPath(resourceType, hovered!)}
       </span>
     </div>
   )
 }
 
-function Node({ value, segs }: { value: unknown; segs: readonly PathSeg[] }) {
-  if (Array.isArray(value)) return <Composite value={value} segs={segs} isArray />
-  if (value !== null && typeof value === 'object') {
-    return <Composite value={value as Record<string, unknown>} segs={segs} isArray={false} />
-  }
-  return <Primitive value={value} segs={segs} />
-}
-
-function Composite({
-  value,
-  segs,
-  isArray,
-}: {
-  value: Record<string, unknown> | unknown[]
-  segs: readonly PathSeg[]
-  isArray: boolean
-}) {
+function JNodeRow({ node, indexPath }: { node: JNode; indexPath: number[] }) {
   const ctx = useContext(Ctx)!
-  const [open, setOpen] = useState(true)
-  const entries = isArray
-    ? (value as unknown[]).map((v, i) => [i, v] as const)
-    : Object.entries(value)
-  const brackets = isArray ? '[]' : '{}'
+  const isMatch = ctx.highlights.has(pathKey(node.segs))
+  const onTrail = ctx.highlightTrail.has(pathKey(node.segs))
+  const isArrayChild = typeof node.key === 'number'
+  const brackets = Array.isArray(node.jsonValue) ? '[]' : '{}'
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="align-baseline text-ink-faint hover:text-ink"
-        aria-label="Expand"
-      >
-        <ChevronRight size={12} className="mb-px inline" />
-        {brackets[0]}…{brackets[1]}
-        <span className="ml-1 text-[11px]">
-          {entries.length} {isArray ? 'items' : 'fields'}
+  const rowClass = cn(
+    'cursor-copy rounded-[1px] data-selected:bg-panel',
+    isMatch && 'bg-match outline-1 -outline-offset-1 outline-match-line',
+    !isMatch && onTrail && 'border-l-2 border-match-line',
+  )
+  const rowProps = {
+    'data-match': isMatch || undefined,
+    title: `Copy ${toFhirPath(ctx.resourceType, node.segs)}`,
+    onMouseOver: (e: React.MouseEvent) => {
+      e.stopPropagation()
+      ctx.setHovered(node.segs)
+    },
+  }
+
+  const keyLabel =
+    node.key === null ? null : (
+      <>
+        <span className={isArrayChild ? 'text-ink-faint' : 'font-medium text-t-complex'}>
+          {isArrayChild ? `[${node.key}]` : `"${node.key}"`}
         </span>
-      </button>
+        <span className="text-ink-faint">: </span>
+      </>
+    )
+
+  if (!node.children) {
+    return (
+      <TreeView.NodeProvider node={node} indexPath={indexPath}>
+        <TreeView.Item className={rowClass} {...rowProps}>
+          {keyLabel}
+          <PrimitiveValue value={node.jsonValue} />
+        </TreeView.Item>
+      </TreeView.NodeProvider>
     )
   }
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(false)}
-        className="align-baseline text-ink-faint hover:text-ink"
-        aria-label="Collapse"
-      >
-        <ChevronDown size={12} className="mb-px inline" />
-        {brackets[0]}
-      </button>
-      <div className="border-l border-line pl-4 hover:border-line-strong">
-        {entries.map(([key, child]) => {
-          const childSegs = [...segs, key]
-          const childKey = pathKey(childSegs)
-          const isMatch = ctx.highlights.has(childKey)
-          const onTrail = ctx.highlightTrail.has(childKey)
-          return (
-            <div
-              key={key}
-              data-match={isMatch || undefined}
-              className={cn(
-                '-ml-4 pl-4',
-                isMatch && 'bg-match outline-1 -outline-offset-1 outline-match-line',
-                !isMatch && onTrail && 'border-l-2 border-match-line',
-              )}
-              onMouseOver={(e) => {
-                e.stopPropagation()
-                ctx.setHovered(childSegs)
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => ctx.copy(childSegs)}
-                title={`Copy ${toFhirPath(ctx.resourceType, childSegs)}`}
-                className={cn(
-                  'cursor-copy',
-                  isArray ? 'text-ink-faint' : 'font-medium text-t-complex',
-                  'hover:underline',
-                )}
-              >
-                {isArray ? `[${key}]` : `"${key}"`}
-              </button>
-              <span className="text-ink-faint">: </span>
-              <Node value={child} segs={childSegs} />
-            </div>
-          )
-        })}
-      </div>
-      <span className="text-ink-faint">{brackets[1]}</span>
-    </>
+    <TreeView.NodeProvider node={node} indexPath={indexPath}>
+      <TreeView.Branch className="group/branch">
+        <TreeView.BranchControl className={rowClass} {...rowProps}>
+          {keyLabel}
+          {/* Dedicated toggle target so row clicks copy instead of collapsing */}
+          <TreeView.BranchTrigger
+            className="inline cursor-pointer align-baseline text-ink-faint hover:text-ink"
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Toggle"
+          >
+            <ChevronDown
+              size={12}
+              className="mb-px inline transition-transform group-data-[state=closed]/branch:-rotate-90"
+              aria-hidden
+            />
+            {brackets[0]}
+            <span className="hidden text-[11px] group-data-[state=closed]/branch:inline">
+              …{brackets[1]} {node.children.length} {Array.isArray(node.jsonValue) ? 'items' : 'fields'}
+            </span>
+          </TreeView.BranchTrigger>
+        </TreeView.BranchControl>
+        <TreeView.BranchContent className="border-l border-line pl-4 hover:border-line-strong">
+          {node.children.map((child, i) => (
+            <JNodeRow key={child.value} node={child} indexPath={[...indexPath, i]} />
+          ))}
+        </TreeView.BranchContent>
+        <span className="hidden text-ink-faint group-data-[state=open]/branch:inline">
+          {brackets[1]}
+        </span>
+      </TreeView.Branch>
+    </TreeView.NodeProvider>
   )
 }
 
-function Primitive({ value, segs }: { value: unknown; segs: readonly PathSeg[] }) {
-  const ctx = useContext(Ctx)!
+function PrimitiveValue({ value }: { value: unknown }) {
   // Collapse embedded whitespace (xhtml narratives) so lines stay readable.
   const display =
     typeof value === 'string' ? `"${truncate(value.replace(/\s+/g, ' '), 240)}"` : String(value)
   return (
-    <button
-      type="button"
-      onClick={() => ctx.copy(segs)}
-      title={`Copy ${toFhirPath(ctx.resourceType, segs)}`}
+    <span
       className={cn(
-        'cursor-copy break-all text-left align-baseline hover:underline',
+        'break-all align-baseline',
         typeof value === 'string' && 'text-t-primitive',
         typeof value === 'number' && 'text-t-choice',
         (typeof value === 'boolean' || value === null) && 'text-t-reference',
       )}
     >
       {display}
-    </button>
+    </span>
   )
 }
 
