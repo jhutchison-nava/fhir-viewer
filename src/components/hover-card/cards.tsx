@@ -3,7 +3,8 @@
  * cards nest: type names inside a card body are themselves hover triggers.
  */
 import { Link } from '@tanstack/react-router'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink as ExternalLinkIcon } from 'lucide-react'
+import { ExternalLink } from '../ExternalLink'
 import type { ElementBinding, ElementNode, SchemaChunk } from '~/lib/schema'
 import { getChunk, prefetchChunk } from '~/lib/schema'
 import { useAsync } from '~/lib/use-async'
@@ -181,15 +182,13 @@ export function BindingCard({ binding }: { binding: ElementBinding }) {
         Binding strength: <span className="font-mono">{binding.strength}</span>
       </p>
       {binding.url && (
-        <a
+        <ExternalLink
           href={binding.url}
-          target="_blank"
-          rel="noreferrer"
           className="mt-1 inline-flex items-center gap-1 break-all font-mono text-[11px] text-t-complex hover:underline"
         >
           {binding.url}
-          <ExternalLink size={10} className="shrink-0" aria-hidden />
-        </a>
+          <ExternalLinkIcon size={10} className="shrink-0" aria-hidden />
+        </ExternalLink>
       )}
     </div>
   )
@@ -201,14 +200,9 @@ function BindingLine({ binding }: { binding: ElementBinding }) {
       binding: {binding.name ?? binding.url?.split('/').pop()}{' '}
       <span className="text-ink-faint">({binding.strength})</span>
       {binding.url && (
-        <a
-          href={binding.url}
-          target="_blank"
-          rel="noreferrer"
-          className="ml-1 text-t-complex hover:underline"
-        >
+        <ExternalLink href={binding.url} className="ml-1 text-t-complex hover:underline">
           ↗
-        </a>
+        </ExternalLink>
       )}
     </p>
   )

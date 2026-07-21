@@ -3,7 +3,8 @@
  * arrow-key navigation, and typeahead come from the machine; row content
  * (flags, type labels, hover cards, binding chips) stays ours.
  */
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation } from '@tanstack/react-router'
 import { TreeView } from '@ark-ui/react/tree-view'
 import { createTreeCollection } from '@ark-ui/react/collection'
 import { ChevronRight, CornerDownRight } from 'lucide-react'
@@ -73,6 +74,28 @@ export function ElementTree({ chunk }: { chunk: SchemaChunk }) {
     }
   }, [chunk])
 
+  // GitHub-style permalink target: #el-<path> highlights the row, expands
+  // its ancestors, and scrolls it to center. Driven by router location, not
+  // the :target pseudo-class (which pushState doesn't recompute reliably).
+  const hash = useLocation({ select: (location) => location.hash })
+  const targetPath =
+    hash.startsWith('el-') && hash.slice(3).split('.')[0] === chunk.type ? hash.slice(3) : null
+
+  const [expanded, setExpanded] = useState<string[]>(defaultExpanded)
+  useEffect(() => setExpanded(defaultExpanded), [defaultExpanded])
+  useEffect(() => {
+    if (!targetPath) return
+    // Every dotted prefix of the target is an ancestor branch to open.
+    const segments = targetPath.split('.')
+    const ancestors = segments
+      .slice(1, -1)
+      .map((_, i) => segments.slice(0, i + 2).join('.'))
+    setExpanded((prev) => [...new Set([...prev, ...ancestors])])
+    requestAnimationFrame(() => {
+      document.getElementById(`el-${targetPath}`)?.scrollIntoView({ block: 'center' })
+    })
+  }, [targetPath])
+
   // Warm the chunk cache for every complex type on the page so hover cards
   // open without a skeleton.
   useEffect(() => {
@@ -89,7 +112,8 @@ export function ElementTree({ chunk }: { chunk: SchemaChunk }) {
     <div className="overflow-x-auto rounded-sm border border-line">
       <TreeView.Root
         collection={collection}
-        defaultExpandedValue={defaultExpanded}
+        expandedValue={expanded}
+        onExpandedChange={(details) => setExpanded(details.expandedValue)}
         selectionMode="single"
         // Node ids double as the #el-<path> anchor targets (contentRef links,
         // backlinks deep links). Don't set id on parts — the machine moves
@@ -100,7 +124,13 @@ export function ElementTree({ chunk }: { chunk: SchemaChunk }) {
       >
         <TreeView.Tree className="outline-none">
           {collection.rootNode.children?.map((node, index) => (
-            <ElementTreeNode key={node.value} node={node} indexPath={[index]} chunk={chunk} />
+            <ElementTreeNode
+              key={node.value}
+              node={node}
+              indexPath={[index]}
+              chunk={chunk}
+              targetPath={targetPath}
+            />
           ))}
         </TreeView.Tree>
       </TreeView.Root>
@@ -112,13 +142,16 @@ function ElementTreeNode({
   node,
   indexPath,
   chunk,
+  targetPath,
 }: {
   node: Node
   indexPath: number[]
   chunk: SchemaChunk
+  targetPath: string | null
 }) {
   const depth = indexPath.length - 1
   const indent = { paddingLeft: `${0.5 + depth * 1.25}rem` }
+  const isHashTarget = !node.choice && node.el.path === targetPath
 
   if (node.choice) {
     return (
@@ -142,7 +175,8 @@ function ElementTreeNode({
       <TreeView.NodeProvider node={node} indexPath={indexPath}>
         <TreeView.Branch>
           <TreeView.BranchControl
-            className="group flex scroll-mt-14 items-start gap-2 border-b border-line px-2 py-1 target:bg-flame-soft hover:bg-panel data-selected:bg-panel"
+            data-hash-target={isHashTarget || undefined}
+            className="group flex scroll-mt-14 items-start gap-2 border-b border-line px-2 py-1 hover:bg-panel data-hash-target:bg-flame-soft data-hash-target:shadow-[inset_2px_0_0] data-hash-target:shadow-flame data-selected:bg-panel"
             style={indent}
           >
             <TreeView.BranchIndicator
@@ -160,6 +194,7 @@ function ElementTreeNode({
                 node={child}
                 indexPath={[...indexPath, i]}
                 chunk={chunk}
+                targetPath={targetPath}
               />
             ))}
           </TreeView.BranchContent>
@@ -171,7 +206,8 @@ function ElementTreeNode({
   return (
     <TreeView.NodeProvider node={node} indexPath={indexPath}>
       <TreeView.Item
-        className="group flex scroll-mt-14 items-start gap-2 border-b border-line px-2 py-1 target:bg-flame-soft hover:bg-panel data-selected:bg-panel"
+        data-hash-target={isHashTarget || undefined}
+        className="group flex scroll-mt-14 items-start gap-2 border-b border-line px-2 py-1 hover:bg-panel data-hash-target:bg-flame-soft data-hash-target:shadow-[inset_2px_0_0] data-hash-target:shadow-flame data-selected:bg-panel"
         style={indent}
       >
         <span className="w-[13px] shrink-0" aria-hidden />
@@ -240,15 +276,20 @@ function Cardinality({ el }: { el: ElementNode }) {
 function ContentRefLink({ target }: { target: string }) {
   const path = target.replace(/^#/, '')
   return (
-    <a
-      href={`#el-${path}`}
+    // Router Link (not <a href="#...">) so the hash lands in router state,
+    // which drives the permalink highlight + ancestor expansion above.
+    <Link
+      to="."
+      search={(prev) => prev}
+      hash={`el-${path}`}
+      hashScrollIntoView={false}
       onClick={(e) => e.stopPropagation()}
       className="inline-flex items-center gap-1 text-xs text-t-complex hover:underline"
       title={`Contents defined at ${path}`}
     >
       <CornerDownRight size={11} aria-hidden />
       see {path}
-    </a>
+    </Link>
   )
 }
 

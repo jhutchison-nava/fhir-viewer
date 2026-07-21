@@ -10,6 +10,7 @@ import { JsonTree } from '~/components/JsonTree'
 import { FhirPathBar } from '~/components/FhirPathBar'
 import { ResultsPanel } from '~/components/ResultsPanel'
 import { BacklinksPanel } from '~/components/BacklinksPanel'
+import { ExternalLink } from '~/components/ExternalLink'
 
 type Tab = 'schema' | 'example' | 'backlinks'
 
@@ -45,6 +46,12 @@ function ResourceDetail() {
       <Tabs.Root
         value={tab}
         lazyMount
+        // Zag's default `navigate` programmatically clicks the active
+        // trigger anchor whenever value changes — with router Links as
+        // triggers that fires a second navigation that strips the URL hash
+        // (and re-navigates after every route change). Null it: Links own
+        // pointer navigation, onValueChange owns keyboard.
+        navigate={null}
         // Pointer clicks navigate through the Links below (URL-first); this
         // handler makes arrow-key tab switching navigate too. Same-URL
         // navigation after a click is a no-op.
@@ -179,14 +186,12 @@ function Header({ chunk }: { chunk: SchemaChunk }) {
               </span>
             )
           )}
-          <a
+          <ExternalLink
             href={`https://hl7.org/fhir/R4/${chunk.type.toLowerCase()}.html`}
-            target="_blank"
-            rel="noreferrer"
             className="rounded-sm border border-line px-1.5 py-px hover:bg-panel"
           >
             spec ↗
-          </a>
+          </ExternalLink>
         </span>
       </div>
       {chunk.description && (
