@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { CircleAlert } from 'lucide-react'
+import { Clipboard } from '@ark-ui/react/clipboard'
+import { Check, CircleAlert, Copy } from 'lucide-react'
 import { cn } from '~/lib/cn'
 
 interface FhirPathBarProps {
@@ -57,6 +58,18 @@ export function FhirPathBar({ value, onChange, error, resultCount, placeholder }
           <span className="shrink-0 text-xs text-ink-faint">
             {resultCount} result{resultCount === 1 ? '' : 's'}
           </span>
+        )}
+        {draft && (
+          <Clipboard.Root value={draft} timeout={1200} className="flex shrink-0">
+            <Clipboard.Trigger
+              aria-label="Copy expression"
+              className="rounded-sm p-1 text-ink-faint hover:bg-inset hover:text-ink data-copied:text-t-primitive"
+            >
+              <Clipboard.Indicator copied={<Check size={13} />}>
+                <Copy size={13} />
+              </Clipboard.Indicator>
+            </Clipboard.Trigger>
+          </Clipboard.Root>
         )}
       </label>
       {error && (

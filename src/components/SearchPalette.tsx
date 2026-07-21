@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Combobox } from '@ark-ui/react/combobox'
 import { Dialog } from '@ark-ui/react/dialog'
+import { Highlight } from '@ark-ui/react/highlight'
 import { Portal } from '@ark-ui/react/portal'
 import { createListCollection } from '@ark-ui/react/collection'
 import { Search } from 'lucide-react'
@@ -102,7 +103,9 @@ function Palette({ onDone }: { onDone: () => void }) {
               persistFocus
               className="flex w-full cursor-pointer items-baseline gap-2 px-3 py-1 text-left font-mono data-highlighted:bg-panel"
             >
-              <span className="shrink-0 text-[13px] font-medium text-flame">{r.type}</span>
+              <span className="shrink-0 text-[13px] font-medium text-flame [&_mark]:rounded-[1px] [&_mark]:bg-match [&_mark]:text-inherit">
+                <Highlight text={r.type} query={query.trim()} ignoreCase />
+              </span>
               <span className="truncate text-xs text-ink-mid">{r.short}</span>
             </Combobox.Item>
           ))}
