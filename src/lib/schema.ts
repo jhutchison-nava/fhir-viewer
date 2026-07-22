@@ -9,7 +9,7 @@ import type { BacklinksIndex, Catalog, SchemaChunk } from './schema-types'
 
 export type { Backlink, BacklinksIndex, Catalog, CatalogResource, CatalogType, ElementBinding, ElementNode, ElementType, SchemaChunk } from './schema-types'
 
-const BASE = '/schema/r4'
+const BASE = `${import.meta.env.BASE_URL}schema/r4`
 
 const cache = new Map<string, Promise<unknown>>()
 
@@ -80,6 +80,6 @@ export function prefetchChunk(type: string) {
       ? requestIdleCallback
       : (fn: () => void) => setTimeout(fn, 200)
   idle(() => {
-    getChunk(type).catch(() => {})
+    getChunk(type).catch(() => { })
   })
 }
