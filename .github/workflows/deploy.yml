@@ -43,8 +43,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # TanStack Start emits the static site under dist/client (dist/server
-          # is the SSR bundle and is not deployed).
+          # TanStack Start emits the static site under dist/client (dist/server is the SSR bundle and is not deployed).
           path: './dist/client'
 
   deploy:

@@ -4,7 +4,9 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 
 export default defineConfig({
-  base: '/fhir-viewer/', // repo name
+  resolve: { tsconfigPaths: true },
+  // GitHub Pages serves at https://<owner>.github.io/fhir-viewer/.
+  base: process.env.NODE_ENV === 'production' ? '/fhir-viewer/' : '/',
   plugins: [
     tailwindcss(),
     tanstackStart({
