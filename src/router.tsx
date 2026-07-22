@@ -1,11 +1,17 @@
 import { createRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
+import { DefaultCatchBoundary } from './components/DefaultCatchBoundary'
+import { NotFound } from './components/NotFound'
 
 export function getRouter() {
-  return createRouter({
+  const router = createRouter({
     routeTree,
+    basepath: '/fhir-viewer/', // repo name
     defaultPreload: 'intent',
-    defaultPreloadStaleTime: Infinity, // schema chunks are immutable
+    defaultErrorComponent: DefaultCatchBoundary,
+    defaultNotFoundComponent: () => <NotFound />,
     scrollRestoration: true,
   })
+
+  return router
 }
